@@ -7,6 +7,7 @@ Premium minimalist çizgide geliştirilmiş Windows masaüstü yapılacaklar lis
 - CustomTkinter ile koyu, modern ve minimalist arayüz
 - Sol menü ile çoklu liste/kategori desteği
 - Her liste için ayrı görev havuzu
+- Liste bazlı günlük tekrar modu
 - Görev ekleme, tamamlama ve silme
 - Görevleri sürükle-bırak ile yeniden sıralama
 - Tamamlanan görevleri soluk ve üstü çizili gösterme
@@ -27,6 +28,10 @@ Görev verileri şu dosyada tutulur:
 ```
 
 Eski `tasks.json` verisi varsa uygulama ilk açılışta otomatik olarak yeni liste yapısına taşır.
+
+## Günlük Tekrar
+
+Aktif listenin üst kısmındaki `Her gün` anahtarı açıldığında o liste günlük tekrar moduna alınır. Uygulama yeni bir günde açıldığında listedeki görevler korunur, ancak tamamlanma durumları otomatik olarak sıfırlanır.
 
 ## EXE Oluşturma
 

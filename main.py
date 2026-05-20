@@ -194,6 +194,10 @@ def today_text() -> str:
     return f"{now.day} {MONTHS_TR[now.month - 1]} {now.year}"
 
 
+def today_key() -> str:
+    return datetime.now().date().isoformat()
+
+
 def make_task(text: str, completed: bool = False) -> dict:
     return {
         "id": uuid4().hex,
@@ -210,6 +214,10 @@ def make_list(name: str, tasks: list[dict] | None = None) -> dict:
         "name": name,
         "created_at": timestamp(),
         "updated_at": timestamp(),
+        "repeat": {
+            "daily": False,
+            "last_reset_date": today_key(),
+        },
         "tasks": tasks or [],
     }
 
@@ -304,6 +312,7 @@ class TodoStore:
                     "name": str(todo_list.get("name") or "Liste").strip(),
                     "created_at": str(todo_list.get("created_at") or timestamp()),
                     "updated_at": str(todo_list.get("updated_at") or timestamp()),
+                    "repeat": self.normalize_repeat(todo_list.get("repeat")),
                     "tasks": normalized_tasks,
                 }
             )
@@ -322,7 +331,43 @@ class TodoStore:
             "updated_at": timestamp(),
             "lists": normalized_lists,
         }
+        self.apply_daily_repeats(persist=False)
         self.save()
+
+    def normalize_repeat(self, repeat: object) -> dict:
+        repeat_data = repeat if isinstance(repeat, dict) else {}
+        return {
+            "daily": bool(repeat_data.get("daily", False)),
+            "last_reset_date": str(repeat_data.get("last_reset_date") or today_key()),
+        }
+
+    def apply_daily_repeats(self, persist: bool = True) -> bool:
+        current_day = today_key()
+        changed = False
+
+        for todo_list in self.data.get("lists", []):
+            repeat = todo_list.setdefault(
+                "repeat",
+                {"daily": False, "last_reset_date": current_day},
+            )
+            if not repeat.get("daily"):
+                continue
+
+            if repeat.get("last_reset_date") == current_day:
+                continue
+
+            for task in todo_list.get("tasks", []):
+                task["completed"] = False
+                task["completed_at"] = None
+
+            repeat["last_reset_date"] = current_day
+            todo_list["updated_at"] = timestamp()
+            changed = True
+
+        if changed and persist:
+            self.save()
+
+        return changed
 
     def save(self) -> None:
         self.data["updated_at"] = timestamp()
@@ -349,6 +394,17 @@ class TodoStore:
         if self.get_list(list_id) is None:
             return
         self.data["active_list_id"] = list_id
+        self.save()
+
+    def set_active_repeat_daily(self, enabled: bool) -> None:
+        active_list = self.get_active_list()
+        repeat = active_list.setdefault(
+            "repeat",
+            {"daily": False, "last_reset_date": today_key()},
+        )
+        repeat["daily"] = enabled
+        repeat["last_reset_date"] = today_key()
+        active_list["updated_at"] = timestamp()
         self.save()
 
     def add_list(self, name: str) -> dict:
@@ -431,6 +487,8 @@ class TodoApp(ctk.CTk):
         self.drag_task_id: str | None = None
         self.drag_started = False
         self.drag_start_y = 0
+        self.repeat_daily_var = BooleanVar(value=False)
+        self.repeat_switch_updating = False
 
         self.title(APP_NAME)
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
@@ -554,6 +612,20 @@ class TodoApp(ctk.CTk):
         )
         self.date_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
+        self.repeat_switch = ctk.CTkSwitch(
+            header,
+            text="Her gün",
+            variable=self.repeat_daily_var,
+            command=self.toggle_repeat_daily,
+            progress_color=COLORS["accent_deep"],
+            button_color=COLORS["accent"],
+            button_hover_color=COLORS["accent_hover"],
+            fg_color=COLORS["surface_lifted"],
+            text_color=COLORS["muted"],
+            font=self.font_small,
+        )
+        self.repeat_switch.grid(row=0, column=1, rowspan=2, sticky="e", padx=(0, 14))
+
         self.summary_pill = ctk.CTkLabel(
             header,
             text="",
@@ -564,7 +636,7 @@ class TodoApp(ctk.CTk):
             text_color=COLORS["muted"],
             font=self.font_small,
         )
-        self.summary_pill.grid(row=0, column=1, rowspan=2, sticky="e")
+        self.summary_pill.grid(row=0, column=2, rowspan=2, sticky="e")
 
         input_frame = ctk.CTkFrame(
             self.main,
@@ -658,10 +730,11 @@ class TodoApp(ctk.CTk):
         fg_color = COLORS["surface_active"] if is_active else "transparent"
         hover_color = COLORS["surface_lifted"]
         text_color = COLORS["text"] if is_active else COLORS["muted"]
+        repeat_marker = "  ↻" if todo_list.get("repeat", {}).get("daily") else ""
 
         button = ctk.CTkButton(
             self.list_frame,
-            text=f"{todo_list['name']}  {active_count}",
+            text=f"{todo_list['name']}{repeat_marker}  {active_count}",
             height=40,
             corner_radius=13,
             fg_color=fg_color,
@@ -806,6 +879,12 @@ class TodoApp(ctk.CTk):
 
         self.active_list_label.configure(text=active_list["name"])
         self.summary_pill.configure(text=f"{active} aktif  ·  {completed} bitti")
+        self.repeat_switch_updating = True
+        if active_list.get("repeat", {}).get("daily"):
+            self.repeat_switch.select()
+        else:
+            self.repeat_switch.deselect()
+        self.repeat_switch_updating = False
         self.render_sidebar()
 
     def switch_list(self, list_id: str) -> None:
@@ -813,6 +892,13 @@ class TodoApp(ctk.CTk):
         self.task_entry.delete(0, "end")
         self.render_all()
         self.task_entry.focus()
+
+    def toggle_repeat_daily(self) -> None:
+        if self.repeat_switch_updating:
+            return
+
+        self.store.set_active_repeat_daily(self.repeat_daily_var.get())
+        self.render_all()
 
     def prompt_new_list(self) -> None:
         dialog = ctk.CTkInputDialog(
