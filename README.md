@@ -1,13 +1,16 @@
 # Günlük To-Do List
 
-Minimalist ve modern görünümlü Windows masaüstü yapılacaklar listesi uygulaması.
+Premium minimalist çizgide geliştirilmiş Windows masaüstü yapılacaklar listesi uygulaması.
 
 ## Özellikler
 
-- CustomTkinter ile modern dark/light mode arayüz
+- CustomTkinter ile koyu, modern ve minimalist arayüz
+- Sol menü ile çoklu liste/kategori desteği
+- Her liste için ayrı görev havuzu
 - Görev ekleme, tamamlama ve silme
+- Görevleri sürükle-bırak ile yeniden sıralama
 - Tamamlanan görevleri soluk ve üstü çizili gösterme
-- Görevleri yerel JSON dosyasında kalıcı saklama
+- Görevleri ve listeleri hiyerarşik JSON dosyasında kalıcı saklama
 - Windows başlangıcında otomatik açılmak için Startup klasörüne kısayol oluşturma
 
 ## Kurulum
@@ -17,11 +20,13 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-Görev verileri şu klasörde tutulur:
+Görev verileri şu dosyada tutulur:
 
 ```text
-%APPDATA%\GunlukTodoList\tasks.json
+%APPDATA%\GunlukTodoList\todo_data.json
 ```
+
+Eski `tasks.json` verisi varsa uygulama ilk açılışta otomatik olarak yeni liste yapısına taşır.
 
 ## EXE Oluşturma
 
